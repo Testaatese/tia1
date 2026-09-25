@@ -1,7 +1,7 @@
 {
-"token":"token",
-"placeId":"placeId",
-"channelId":"channelId",
-"channelId2":"channelId2",
-"channelId3":"channelId3"
+"token":"secret",
+"placeId":"10600763783",
+"channelId":"1553047043172204684",
+"channelId2":"1553047043172204684",
+"channelId3":"1553047043172204684"
 }
