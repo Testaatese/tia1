@@ -1,62 +1,60 @@
-import json from 'json';
-import config from './config.json' assert { type: "json" };
-import discord from 'discord.js';
-import fetch from 'node-fetch';
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const axios = require('axios');
+const config = require('./config.json');
 
-const client = new discord.Client({ intents: [discord.GatewayIntentBits.Guilds, discord.GatewayIntentBits.GuildMessages] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-let universeId = 0;
-client.on('ready', () => {
-    console.log('Bot is ready!');
-    // check if bot has been set up
-    if (config.token === 'token' || config.placeId === 'placeId' || config.channelId === 'channelId' || config.channelId2 === 'channelId2' || config.channelId3 === 'channelId3') {
-        console.log('Please configure the bot before running it! || npm run setup');
-        process.exit(1);
-    }
-    // fetch the universe id
-    let placeId = config.placeId;
-    fetch(`https://apis.roblox.com/universes/v1/places/${placeId}/universe`)
-        .then(res => res.json())
-        .then(json => {
-            universeId = json.universeId;
-            console.log(`Universe id: ${universeId}`);
+// Variable to store the last known update time
+let lastUpdatedTime = null;
+
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`Tracking Universe ID: ${config.universeId}`);
+    
+    // Start checking every X milliseconds (defined in your config, e.g., 30000)
+    setInterval(checkGameUpdate, config.updateInterval);
+});
+
+async function checkGameUpdate() {
+    try {
+        // Fetch data from the official Roblox Games API
+        const response = await axios.get(`https://roblox.com{config.universeId}`);
+        const gameData = response.data.data[0];
+
+        if (!gameData) return;
+
+        const currentUpdateTime = gameData.updated; // Format: "2026-09-25T15:20:00Z"
+        const channel = await client.channels.fetch(config.channelId);
+
+        // First run: establish a baseline timestamp so it doesn't instantly ping
+        if (lastUpdatedTime === null) {
+            lastUpdatedTime = currentUpdateTime;
+            console.log(`Baseline set. Last update was: ${lastUpdatedTime}`);
+            return;
         }
-        )
-        .catch(err => {
-            console.log('Invalid place id!');
-            process.exit(1);
+
+        // If the timestamp has changed, the game was updated!
+        if (currentUpdateTime !== lastUpdatedTime) {
+            lastUpdatedTime = currentUpdateTime;
+
+            const embed = new EmbedBuilder()
+                .setTitle(`🚨 Game Update Detected!`)
+                .setDescription(`**[${gameData.name}](https://roblox.com{gameData.rootPlaceId})** has just been updated by the developer!`)
+                .addFields(
+                    { name: 'Active Players', value: gameData.playing.toLocaleString(), inline: true },
+                    { name: 'Total Visits', value: gameData.visits.toLocaleString(), inline: true }
+                )
+                .setColor('#FF0000')
+                .setTimestamp(new Date(currentUpdateTime));
+
+            await channel.send({ content: "@everyone The game has updated!", embeds: [embed] });
+            console.log("Change detected! Alert sent to Discord.");
         }
-        );
-    // fetch the game info
-    function mainfunction() {
-        fetch(`https://games.roblox.com/v1/games?universeIds=${universeId}`)
-            .then(res => res.json())
-            .then(json => {
-            // set the channel names
-            client.channels.cache.get(config.channelId).setName(`Visits: ${json.data[0].visits}`)
-            .catch(err => {
-                console.log('Something went wrong!');
-                });
-            client.channels.cache.get(config.channelId2).setName(`Playing: ${json.data[0].playing}`)
-            .catch(err => {
-                console.log('Something went wrong!');
-                });
-            client.channels.cache.get(config.channelId3).setName(`Favorites: ${json.data[0].favoritedCount}`)
-            .catch(err => {
-                console.log('Something went wrong!');
-                });
-            }
-            )
-            .catch(err => {
-                console.log('Something went wrong!');
-                }
-            );
+
+    } catch (error) {
+        console.error("Error fetching Roblox API:", error.message);
     }
-    // set the interval
-    setInterval(() => {
-        mainfunction();
-    }
-    , 30000);
 }
-);
-client.login(config.token);
+
+// Login using the token passed securely from Railway
+client.login(process.env.token || config.token);
