@@ -1,6 +1,18 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const config = require('./config.json');
+let config = {};
+try {
+    config = require('./config.json');
+} catch (e) {
+    // Fallback to Railway Environment Variables
+    config = {
+        token: process.env.DISCORD_TOKEN,
+        channelId: process.env.DISCORD_CHANNEL_ID,
+        gameId: process.env.ROBLOX_GAME_ID,
+        interval: process.env.UPDATE_INTERVAL || 30000
+    };
+}
+
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
